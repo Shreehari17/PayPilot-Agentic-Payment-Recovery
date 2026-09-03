@@ -1,11 +1,41 @@
 from langchain_core.tools import tool
 import ast
 from tavily import TavilyClient
-import os
+import operator as op
 import requests
 from dotenv import load_dotenv
 load_dotenv()
-
+SAFE_OPERATORS = {
+    ast.Add: op.add,
+    ast.Sub: op.sub,
+    ast.Mult: op.mul,
+    ast.Div: op.truediv,
+    ast.Pow: op.pow,
+    ast.Mod: op.mod,
+    ast.USub: op.neg,
+    ast.UAdd: op.pos,
+}
+def safe_eval(node):
+    if isinstance(node, ast.Expression):
+        return safe_eval(node.body)
+    if isinstance(node, ast.Constant):
+        if not isinstance(node.value, (int, float)):
+            raise ValueError("Only numeric constants allowed")
+        return node.value
+    if isinstance(node, ast.BinOp):
+        left = safe_eval(node.left)
+        right = safe_eval(node.right)
+        operator_fn = SAFE_OPERATORS.get(type(node.op))
+        if not operator_fn:
+            raise ValueError("Unsupported operator")
+        return operator_fn(left, right)
+    if isinstance(node, ast.UnaryOp):
+        operand = safe_eval(node.operand)
+        operator_fn = SAFE_OPERATORS.get(type(node.op))
+        if not operator_fn:
+            raise ValueError("Unsupported operator")
+        return operator_fn(operand)
+    raise ValueError(f"Unsafe expression type: {type(node).__name__}")
 
 @tool
 def search_knowledge_base(query:str)->str:
@@ -45,14 +75,16 @@ def web_search(query:str)->str:
 
 
 
-@tool 
-def calculate(expression:str)->str:
-    """Evaluate a mathematical expression and return the result
-    Use this for any arithmetic,percentage or numerical calculations.
+@tool
+def calculate(expression: str) -> str:
+    """Evaluate a mathematical expression and return the result.
+    Use this for any arithmetic, percentage or numerical calculations.
     Always use this instead of computing in your head."""
     try:
-        result=eval(compile(ast.parse(expression,mode='eval'),'<string>','eval'))
-        return str(result)
+        tree = ast.parse(expression, mode='eval')
+        result = safe_eval(tree)
+        return str(round(result, 4))
+    except ZeroDivisionError:
+        return "Error: division by zero"
     except Exception as e:
-        return "Error evaluating expression: "+str(e)
-
+        return f"Error evaluating expression: {str(e)}"
