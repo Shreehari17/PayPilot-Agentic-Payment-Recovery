@@ -1,4 +1,4 @@
-# PayPilot — Agentic Payment Recovery
+# PayPilot — Agentic Payment Recovery(originally Intelligent Research Agent)
 
 > **Razorpay AI Buildathon — Track 03: AI Revenue Recovery**
 
